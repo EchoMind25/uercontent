@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { getSupabaseRouteHandler, isSupabaseConfigured } from '@/lib/supabase/server';
 
 const contentCreateSchema = z.object({
-  platform: z.enum(['IGFB', 'LinkedIn', 'Blog', 'YouTube']),
-  contentType: z.enum(['Local', 'Market', 'Educational', 'Personal', 'Promotional']),
+  platform: z.enum(['IGFB', 'LinkedIn', 'Blog', 'YouTube', 'X']),
+  contentType: z.enum(['Local', 'Market', 'Educational', 'Personal', 'Promotional', 'Professional', 'Community', 'Reflection', 'Insight', 'Guide', 'Safety']),
   topic: z.string().min(1),
   generatedText: z.string(),
   publishDate: z.string(),
@@ -15,8 +15,8 @@ const contentCreateSchema = z.object({
 
 const contentUpdateSchema = z.object({
   id: z.string().uuid(),
-  platform: z.enum(['IGFB', 'LinkedIn', 'Blog', 'YouTube']).optional(),
-  contentType: z.enum(['Local', 'Market', 'Educational', 'Personal', 'Promotional']).optional(),
+  platform: z.enum(['IGFB', 'LinkedIn', 'Blog', 'YouTube', 'X']).optional(),
+  contentType: z.enum(['Local', 'Market', 'Educational', 'Personal', 'Promotional', 'Professional', 'Community', 'Reflection', 'Insight', 'Guide', 'Safety']).optional(),
   topic: z.string().min(1).optional(),
   generatedText: z.string().optional(),
   publishDate: z.string().optional(),

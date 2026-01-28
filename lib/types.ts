@@ -1,6 +1,6 @@
 // Content item types
-export type Platform = 'IGFB' | 'LinkedIn' | 'Blog' | 'YouTube';
-export type ContentType = 'Local' | 'Market' | 'Educational' | 'Personal' | 'Promotional';
+export type Platform = 'IGFB' | 'LinkedIn' | 'Blog' | 'YouTube' | 'X';
+export type ContentType = 'Local' | 'Market' | 'Educational' | 'Personal' | 'Promotional' | 'Professional' | 'Community' | 'Reflection' | 'Insight' | 'Guide' | 'Safety';
 export type ContentStatus = 'draft' | 'approved' | 'published' | 'scheduled';
 
 export interface ContentItem {

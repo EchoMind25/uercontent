@@ -4,8 +4,8 @@
 create table if not exists public.content (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  platform text not null check (platform in ('IGFB', 'LinkedIn', 'Blog', 'YouTube')),
-  content_type text not null check (content_type in ('Local', 'Market', 'Educational', 'Personal', 'Promotional')),
+  platform text not null check (platform in ('IGFB', 'LinkedIn', 'Blog', 'YouTube', 'X')),
+  content_type text not null check (content_type in ('Local', 'Market', 'Educational', 'Personal', 'Promotional', 'Professional', 'Community', 'Reflection', 'Insight', 'Guide', 'Safety')),
   topic text not null,
   generated_text text not null default '',
   publish_date date not null,
@@ -47,6 +47,7 @@ create table if not exists public.research_content (
 );
 
 create index idx_research_content_url_id on public.research_content(research_url_id);
+create index idx_research_content_scraped_at on public.research_content(scraped_at desc);
 
 -- Topic keywords table
 create table if not exists public.topic_keywords (

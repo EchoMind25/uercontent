@@ -6,8 +6,7 @@ alter table public.content
   add column if not exists embedding vector(1536);
 
 create index idx_content_embedding on public.content
-  using ivfflat (embedding vector_cosine_ops)
-  with (lists = 100);
+  using hnsw (embedding vector_cosine_ops);
 
 -- Similarity search function
 create or replace function public.match_content(
