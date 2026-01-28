@@ -1,0 +1,124 @@
+'use client';
+
+import { ResearchUrl } from '@/lib/types';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
+
+interface ResearchUrlTableProps {
+  urls: ResearchUrl[];
+}
+
+export function ResearchUrlTable({ urls }: ResearchUrlTableProps) {
+  const handleToggleActive = (id: string, currentState: boolean) => {
+    console.log('Toggle active:', id, !currentState);
+    toast.info('Feature coming in Phase 2', {
+      description: 'URL management will be available soon.',
+    });
+  };
+
+  const handleEdit = (id: string) => {
+    console.log('Edit URL:', id);
+    toast.info('Feature coming in Phase 2', {
+      description: 'URL editing will be available soon.',
+    });
+  };
+
+  const handleDelete = (id: string) => {
+    console.log('Delete URL:', id);
+    toast.info('Feature coming in Phase 2', {
+      description: 'URL deletion will be available soon.',
+    });
+  };
+
+  const frequencyColors: Record<string, string> = {
+    daily: 'bg-blue-100 text-blue-700',
+    weekly: 'bg-purple-100 text-purple-700',
+    monthly: 'bg-gray-100 text-gray-700',
+  };
+
+  return (
+    <div className="rounded-lg border bg-white">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[300px]">URL</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>Frequency</TableHead>
+            <TableHead>Last Scraped</TableHead>
+            <TableHead className="text-center">Active</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {urls.map((url) => (
+            <TableRow key={url.id}>
+              <TableCell>
+                <div className="flex flex-col">
+                  <span className="font-medium text-slate-900">{url.title}</span>
+                  <a
+                    href={url.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1 truncate max-w-[280px]"
+                  >
+                    {url.url}
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                  </a>
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline">{url.category}</Badge>
+              </TableCell>
+              <TableCell>
+                <Badge className={frequencyColors[url.scrapeFrequency]}>
+                  {url.scrapeFrequency}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-sm text-slate-600">
+                {url.lastScraped
+                  ? formatDistanceToNow(new Date(url.lastScraped), { addSuffix: true })
+                  : 'Never'}
+              </TableCell>
+              <TableCell className="text-center">
+                <Switch
+                  checked={url.isActive}
+                  onCheckedChange={() => handleToggleActive(url.id, url.isActive)}
+                />
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEdit(url.id)}
+                  >
+                    <Pencil className="h-4 w-4 text-slate-600" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(url.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
