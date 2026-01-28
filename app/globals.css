@@ -3,6 +3,50 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * =============================================================================
+ * CUSTOMIZABLE COLOR PALETTE
+ * =============================================================================
+ * Modify these CSS variables to customize the application's color scheme.
+ * The default palette uses Echo Mind's clean, blue-focused design.
+ *
+ * To customize:
+ * 1. Edit the HSL values below
+ * 2. Or override these variables in your own CSS file
+ * =============================================================================
+ */
+:root {
+  /* Brand Primary - Main blue accent (buttons, links, highlights) */
+  --brand-primary: 199 89% 48%;           /* Sky blue #0ea5e9 */
+  --brand-primary-light: 199 95% 74%;     /* Light sky #7dd3fc */
+  --brand-primary-dark: 200 98% 39%;      /* Dark sky #0284c7 */
+
+  /* Brand Secondary - Supporting blue tones */
+  --brand-secondary: 217 91% 60%;         /* Royal blue #3b82f6 */
+  --brand-secondary-light: 214 95% 93%;   /* Light blue #dbeafe */
+  --brand-secondary-dark: 224 76% 48%;    /* Dark blue #2563eb */
+
+  /* Platform Colors - All in the blue family for cohesive design */
+  --platform-igfb: 199 89% 48%;           /* Sky blue */
+  --platform-linkedin: 217 91% 60%;       /* Royal blue */
+  --platform-blog: 239 84% 67%;           /* Indigo */
+  --platform-youtube: 263 70% 50%;        /* Violet */
+
+  /* Status Colors - Semantic coloring */
+  --status-success: 142 71% 45%;          /* Emerald */
+  --status-warning: 38 92% 50%;           /* Amber */
+  --status-error: 0 84% 60%;              /* Red (for critical errors only) */
+  --status-info: 217 91% 60%;             /* Blue */
+
+  /* Neutral tones */
+  --neutral-50: 210 40% 98%;
+  --neutral-100: 214 32% 91%;
+  --neutral-200: 213 27% 84%;
+  --neutral-500: 215 16% 47%;
+  --neutral-700: 215 25% 27%;
+  --neutral-900: 217 33% 17%;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

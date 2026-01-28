@@ -197,26 +197,11 @@ export const mockUserSettings: UserSettings = {
   ]
 };
 
-// Platform colors for consistent styling
-export const platformColors: Record<string, { bg: string; text: string; border: string }> = {
-  IGFB: { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-300' },
-  LinkedIn: { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300' },
-  Blog: { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-300' },
-  YouTube: { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' }
-};
-
-// Platform emojis
-export const platformEmojis: Record<string, string> = {
-  IGFB: '📸',
-  LinkedIn: '💼',
-  Blog: '📝',
-  YouTube: '🎬'
-};
-
-// Status colors
-export const statusColors: Record<string, { bg: string; text: string }> = {
-  draft: { bg: 'bg-gray-100', text: 'text-gray-700' },
-  approved: { bg: 'bg-green-100', text: 'text-green-700' },
-  published: { bg: 'bg-blue-100', text: 'text-blue-700' },
-  scheduled: { bg: 'bg-yellow-100', text: 'text-yellow-700' }
-};
+// Re-export colors from the centralized color palette
+export {
+  platformColors,
+  platformEmojis,
+  statusColors,
+  frequencyColors,
+  categoryColors,
+} from './colors';

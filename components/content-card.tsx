@@ -95,7 +95,7 @@ export function ContentCard({ item, onApprove, onEdit }: ContentCardProps) {
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 text-green-700 border-green-300 hover:bg-green-50"
+              className="flex-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
               onClick={handleApprove}
             >
               <Check className="h-4 w-4 mr-1" />

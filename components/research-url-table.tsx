@@ -1,6 +1,7 @@
 'use client';
 
 import { ResearchUrl } from '@/lib/types';
+import { frequencyColors } from '@/lib/colors';
 import {
   Table,
   TableBody,
@@ -40,12 +41,6 @@ export function ResearchUrlTable({ urls }: ResearchUrlTableProps) {
     toast.info('Feature coming in Phase 2', {
       description: 'URL deletion will be available soon.',
     });
-  };
-
-  const frequencyColors: Record<string, string> = {
-    daily: 'bg-blue-100 text-blue-700',
-    weekly: 'bg-purple-100 text-purple-700',
-    monthly: 'bg-gray-100 text-gray-700',
   };
 
   return (
@@ -111,7 +106,7 @@ export function ResearchUrlTable({ urls }: ResearchUrlTableProps) {
                     size="icon"
                     onClick={() => handleDelete(url.id)}
                   >
-                    <Trash2 className="h-4 w-4 text-red-500" />
+                    <Trash2 className="h-4 w-4 text-slate-500 hover:text-slate-700" />
                   </Button>
                 </div>
               </TableCell>
