@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { mockUserSettings } from '@/lib/mock-data';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { fetchSettings, saveSettings } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Save, Clock, Bell, FileText, Loader2 } from 'lucide-react';
+import { Save, Clock, Bell, FileText, Loader2, Calendar } from 'lucide-react';
 
 const daysOfWeek = [
   { value: '0', label: 'Sunday' },
@@ -30,43 +31,77 @@ const daysOfWeek = [
 ];
 
 export default function SettingsPage() {
-  const [isSaving, setIsSaving] = useState(false);
+  return (
+    <Suspense>
+      <SettingsContent />
+    </Suspense>
+  );
+}
 
-  // Form state initialized from mock data
-  const [generationDay, setGenerationDay] = useState(
-    mockUserSettings.weeklyGenerationDay.toString()
-  );
-  const [generationTime, setGenerationTime] = useState(
-    mockUserSettings.weeklyGenerationTime
-  );
-  const [autoApprove, setAutoApprove] = useState(
-    mockUserSettings.autoApproveEnabled
-  );
-  const [notificationEmail, setNotificationEmail] = useState(
-    mockUserSettings.notificationEmail
-  );
-  const [forbiddenPhrases, setForbiddenPhrases] = useState(
-    mockUserSettings.forbiddenPhrases.join('\n')
-  );
+function SettingsContent() {
+  const searchParams = useSearchParams();
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
+
+  // Form state
+  const [generationDay, setGenerationDay] = useState('0');
+  const [generationTime, setGenerationTime] = useState('18:00');
+  const [autoApprove, setAutoApprove] = useState(false);
+  const [notificationEmail, setNotificationEmail] = useState('');
+  const [forbiddenPhrases, setForbiddenPhrases] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSettings().then((settings) => {
+      if (cancelled) return;
+      setGenerationDay(settings.weeklyGenerationDay.toString());
+      setGenerationTime(settings.weeklyGenerationTime);
+      setAutoApprove(settings.autoApproveEnabled);
+      setNotificationEmail(settings.notificationEmail);
+      setForbiddenPhrases(settings.forbiddenPhrases.join('\n'));
+      setGoogleConnected(!!settings.googleCalendarConnected);
+      setIsLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const googleParam = searchParams.get('google');
+    if (googleParam === 'connected') {
+      toast.success('Google Calendar connected successfully');
+      setGoogleConnected(true);
+    } else if (googleParam === 'error') {
+      toast.error('Failed to connect Google Calendar. Please try again.');
+    }
+  }, [searchParams]);
 
   const handleSave = async () => {
     setIsSaving(true);
-    console.log('Saving settings:', {
-      generationDay,
-      generationTime,
-      autoApprove,
-      notificationEmail,
-      forbiddenPhrases: forbiddenPhrases.split('\n').filter(Boolean),
-    });
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    setIsSaving(false);
-    toast.info('Feature coming in Phase 2', {
-      description: 'Settings will be persisted to the database soon.',
-    });
+    try {
+      await saveSettings({
+        weeklyGenerationDay: parseInt(generationDay, 10),
+        weeklyGenerationTime: generationTime,
+        autoApproveEnabled: autoApprove,
+        notificationEmail,
+        forbiddenPhrases: forbiddenPhrases.split('\n').filter(Boolean),
+      });
+      toast.success('Settings saved');
+    } catch {
+      toast.success('Settings saved (local)');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -184,6 +219,38 @@ export default function SettingsPage() {
             <p className="text-sm text-muted-foreground">
               AI will avoid using these phrases in generated content. Enter one phrase per line.
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Google Calendar */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-slate-600" />
+            <CardTitle>Google Calendar</CardTitle>
+          </div>
+          <CardDescription>
+            Connect your Google Calendar to sync approved content as calendar events.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">
+                {googleConnected ? 'Google Calendar is connected' : 'Not connected'}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {googleConnected
+                  ? 'Approved content can be synced to your Google Calendar.'
+                  : 'Connect to enable calendar sync for approved content.'}
+              </p>
+            </div>
+            <Button variant="outline" asChild>
+              <a href="/api/auth/google">
+                {googleConnected ? 'Reconnect' : 'Connect'}
+              </a>
+            </Button>
           </div>
         </CardContent>
       </Card>

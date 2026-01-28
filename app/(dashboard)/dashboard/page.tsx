@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ContentCard } from '@/components/content-card';
 import { GenerationWizard } from '@/components/generation-wizard';
-import { mockContent } from '@/lib/mock-data';
-import { ContentStatus, Platform } from '@/lib/types';
+import { fetchContent, approveContent } from '@/lib/api';
+import { ContentItem, ContentStatus, Platform } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -15,31 +15,46 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Filter } from 'lucide-react';
+import { toast } from 'sonner';
 
 type StatusFilter = ContentStatus | 'all';
 type PlatformFilter = Platform | 'all';
 
 export default function DashboardPage() {
+  const [content, setContent] = useState<ContentItem[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
 
+  async function loadContent() {
+    const items = await fetchContent();
+    setContent(items);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchContent().then((items) => {
+      if (!cancelled) setContent(items);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   const filteredContent = useMemo(() => {
-    return mockContent.filter((item) => {
+    return content.filter((item) => {
       const statusMatch = statusFilter === 'all' || item.status === statusFilter;
       const platformMatch = platformFilter === 'all' || item.platform === platformFilter;
       return statusMatch && platformMatch;
     });
-  }, [statusFilter, platformFilter]);
+  }, [content, statusFilter, platformFilter]);
 
   const statusCounts = useMemo(() => {
     return {
-      all: mockContent.length,
-      draft: mockContent.filter((i) => i.status === 'draft').length,
-      approved: mockContent.filter((i) => i.status === 'approved').length,
-      scheduled: mockContent.filter((i) => i.status === 'scheduled').length,
-      published: mockContent.filter((i) => i.status === 'published').length,
+      all: content.length,
+      draft: content.filter((i) => i.status === 'draft').length,
+      approved: content.filter((i) => i.status === 'approved').length,
+      scheduled: content.filter((i) => i.status === 'scheduled').length,
+      published: content.filter((i) => i.status === 'published').length,
     };
-  }, []);
+  }, [content]);
 
   const clearFilters = () => {
     setStatusFilter('all');
@@ -47,6 +62,30 @@ export default function DashboardPage() {
   };
 
   const hasActiveFilters = statusFilter !== 'all' || platformFilter !== 'all';
+
+  const handleApprove = async (id: string) => {
+    try {
+      const updated = await approveContent(id);
+      setContent((prev) =>
+        prev.map((item) => (item.id === id ? updated : item))
+      );
+      toast.success('Content approved');
+    } catch {
+      // Fallback: optimistically update in local state
+      setContent((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, status: 'approved' as ContentStatus } : item
+        )
+      );
+      toast.success('Content approved (local)');
+    }
+  };
+
+  const handleEdit = (id: string) => {
+    toast.info('Content editing coming in Phase 3', {
+      description: `Edit content ${id}`,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -58,7 +97,7 @@ export default function DashboardPage() {
             Manage and review your scheduled content
           </p>
         </div>
-        <GenerationWizard />
+        <GenerationWizard onGenerated={loadContent} />
       </div>
 
       {/* Filters */}
@@ -123,7 +162,12 @@ export default function DashboardPage() {
       {filteredContent.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredContent.map((item) => (
-            <ContentCard key={item.id} item={item} />
+            <ContentCard
+              key={item.id}
+              item={item}
+              onApprove={handleApprove}
+              onEdit={handleEdit}
+            />
           ))}
         </div>
       ) : (

@@ -14,35 +14,16 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Pencil, Trash2, ExternalLink } from 'lucide-react';
-import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
 interface ResearchUrlTableProps {
   urls: ResearchUrl[];
+  onToggleActive?: (id: string, isActive: boolean) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
-export function ResearchUrlTable({ urls }: ResearchUrlTableProps) {
-  const handleToggleActive = (id: string, currentState: boolean) => {
-    console.log('Toggle active:', id, !currentState);
-    toast.info('Feature coming in Phase 2', {
-      description: 'URL management will be available soon.',
-    });
-  };
-
-  const handleEdit = (id: string) => {
-    console.log('Edit URL:', id);
-    toast.info('Feature coming in Phase 2', {
-      description: 'URL editing will be available soon.',
-    });
-  };
-
-  const handleDelete = (id: string) => {
-    console.log('Delete URL:', id);
-    toast.info('Feature coming in Phase 2', {
-      description: 'URL deletion will be available soon.',
-    });
-  };
-
+export function ResearchUrlTable({ urls, onToggleActive, onEdit, onDelete }: ResearchUrlTableProps) {
   return (
     <div className="rounded-lg border bg-white">
       <Table>
@@ -89,7 +70,7 @@ export function ResearchUrlTable({ urls }: ResearchUrlTableProps) {
               <TableCell className="text-center">
                 <Switch
                   checked={url.isActive}
-                  onCheckedChange={() => handleToggleActive(url.id, url.isActive)}
+                  onCheckedChange={(checked) => onToggleActive?.(url.id, checked)}
                 />
               </TableCell>
               <TableCell className="text-right">
@@ -97,14 +78,14 @@ export function ResearchUrlTable({ urls }: ResearchUrlTableProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleEdit(url.id)}
+                    onClick={() => onEdit?.(url.id)}
                   >
                     <Pencil className="h-4 w-4 text-slate-600" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleDelete(url.id)}
+                    onClick={() => onDelete?.(url.id)}
                   >
                     <Trash2 className="h-4 w-4 text-slate-500 hover:text-slate-700" />
                   </Button>

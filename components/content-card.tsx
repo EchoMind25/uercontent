@@ -6,13 +6,12 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, Check, Pencil } from 'lucide-react';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface ContentCardProps {
   item: ContentItem;
-  onApprove?: () => void;
-  onEdit?: () => void;
+  onApprove?: (id: string) => void;
+  onEdit?: (id: string) => void;
 }
 
 export function ContentCard({ item, onApprove, onEdit }: ContentCardProps) {
@@ -21,23 +20,15 @@ export function ContentCard({ item, onApprove, onEdit }: ContentCardProps) {
   const emoji = platformEmojis[item.platform];
 
   const handleApprove = () => {
-    console.log('Approve clicked:', item.id);
     if (onApprove) {
-      onApprove();
+      onApprove(item.id);
     }
-    toast.info('Feature coming in Phase 2', {
-      description: 'Content approval will be available soon.',
-    });
   };
 
   const handleEdit = () => {
-    console.log('Edit clicked:', item.id);
     if (onEdit) {
-      onEdit();
+      onEdit(item.id);
     }
-    toast.info('Feature coming in Phase 2', {
-      description: 'Content editing will be available soon.',
-    });
   };
 
   // Truncate text to ~150 characters

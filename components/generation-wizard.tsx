@@ -16,8 +16,13 @@ import { Calendar } from '@/components/ui/calendar';
 import { Sparkles, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { addDays, format } from 'date-fns';
+import { generateWeek } from '@/lib/api';
 
-export function GenerationWizard() {
+interface GenerationWizardProps {
+  onGenerated?: () => void;
+}
+
+export function GenerationWizard({ onGenerated }: GenerationWizardProps) {
   const [open, setOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     addDays(new Date(), 7) // Default to next week
@@ -31,16 +36,29 @@ export function GenerationWizard() {
     }
 
     setIsGenerating(true);
-    console.log('Generate week clicked for:', selectedDate);
 
-    // Simulate generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      const startDate = format(selectedDate, 'yyyy-MM-dd');
+      const result = await generateWeek({
+        startDate,
+        researchFirst: true,
+        autoApprove: false,
+      });
 
-    setIsGenerating(false);
-    setOpen(false);
-    toast.info('Feature coming in Phase 4', {
-      description: 'AI content generation will be available soon.',
-    });
+      setOpen(false);
+      toast.success(`Generated ${result.itemsGenerated} content items`, {
+        description: result.itemsFailed > 0
+          ? `${result.itemsFailed} failed. Check your API keys.`
+          : `Content is ready for review.`,
+      });
+      onGenerated?.();
+    } catch {
+      toast.info('Generation requires API configuration', {
+        description: 'Set up Supabase and AI API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY) to enable generation.',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (

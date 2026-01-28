@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { mockContent, platformColors, platformEmojis } from '@/lib/mock-data';
-import { ContentItem } from '@/lib/types';
+import { useState, useMemo, useEffect } from 'react';
+import { platformColors, platformEmojis } from '@/lib/mock-data';
+import { fetchContent, approveContent, syncToCalendar } from '@/lib/api';
+import { ContentItem, ContentStatus } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -12,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Loader2, CalendarCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   addDays,
@@ -26,8 +27,18 @@ import {
 import { cn } from '@/lib/utils';
 
 export default function CalendarPage() {
-  const [currentDate, setCurrentDate] = useState(new Date('2026-02-03')); // Start at the first content item date
+  const [currentDate, setCurrentDate] = useState(new Date('2026-02-03'));
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
+  const [content, setContent] = useState<ContentItem[]>([]);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchContent().then((items) => {
+      if (!cancelled) setContent(items);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -43,7 +54,7 @@ export default function CalendarPage() {
   }, [weekStart, weekEnd]);
 
   const getContentForDay = (date: Date): ContentItem[] => {
-    return mockContent.filter((item) => {
+    return content.filter((item) => {
       const itemDate = new Date(item.publishDate);
       return isSameDay(itemDate, date);
     });
@@ -58,7 +69,7 @@ export default function CalendarPage() {
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date('2026-02-03')); // For demo purposes, use the mock data date
+    setCurrentDate(new Date('2026-02-03'));
     toast.info('Showing mock data week', {
       description: 'In production, this would show the current week.',
     });
@@ -69,8 +80,46 @@ export default function CalendarPage() {
   };
 
   const isToday = (date: Date) => {
-    // For demo, consider 2026-02-03 as "today"
     return isSameDay(date, new Date('2026-02-03'));
+  };
+
+  const handleApprove = async (item: ContentItem) => {
+    try {
+      const updated = await approveContent(item.id);
+      setContent((prev) =>
+        prev.map((c) => (c.id === item.id ? updated : c))
+      );
+      setSelectedItem(null);
+      toast.success('Content approved');
+    } catch {
+      setContent((prev) =>
+        prev.map((c) =>
+          c.id === item.id ? { ...c, status: 'approved' as ContentStatus } : c
+        )
+      );
+      setSelectedItem(null);
+      toast.success('Content approved (local)');
+    }
+  };
+
+  const handleSyncToCalendar = async (item: ContentItem) => {
+    setSyncing(true);
+    try {
+      const result = await syncToCalendar(item.id);
+      setContent((prev) =>
+        prev.map((c) =>
+          c.id === item.id
+            ? { ...c, status: 'scheduled' as ContentStatus, calendarEventId: result.calendarEventId }
+            : c
+        )
+      );
+      setSelectedItem(null);
+      toast.success('Synced to Google Calendar');
+    } catch {
+      toast.error('Failed to sync to calendar. Connect Google Calendar in Settings.');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
@@ -216,23 +265,37 @@ export default function CalendarPage() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      console.log('Edit clicked:', selectedItem.id);
                       setSelectedItem(null);
-                      toast.info('Feature coming in Phase 2');
+                      toast.info('Content editing coming in Phase 3');
                     }}
                   >
                     Edit Content
                   </Button>
                   {selectedItem.status === 'draft' && (
-                    <Button
-                      onClick={() => {
-                        console.log('Approve clicked:', selectedItem.id);
-                        setSelectedItem(null);
-                        toast.info('Feature coming in Phase 2');
-                      }}
-                    >
+                    <Button onClick={() => handleApprove(selectedItem)}>
                       Approve
                     </Button>
+                  )}
+                  {selectedItem.status === 'approved' && !selectedItem.calendarEventId && (
+                    <Button onClick={() => handleSyncToCalendar(selectedItem)} disabled={syncing}>
+                      {syncing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Syncing...
+                        </>
+                      ) : (
+                        <>
+                          <CalendarCheck className="mr-2 h-4 w-4" />
+                          Sync to Calendar
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {selectedItem.calendarEventId && (
+                    <Badge variant="secondary">
+                      <CalendarCheck className="mr-1 h-3 w-3" />
+                      Synced
+                    </Badge>
                   )}
                 </div>
               </div>

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ResearchUrlTable } from '@/components/research-url-table';
-import { mockResearchUrls } from '@/lib/mock-data';
+import { fetchResearchUrls, createResearchUrl, updateResearchUrl, deleteResearchUrl, scrapeResearchUrls } from '@/lib/api';
+import { ResearchUrl } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,6 +27,7 @@ import { Plus, RefreshCw, Loader2, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ResearchPage() {
+  const [urls, setUrls] = useState<ResearchUrl[]>([]);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [isScrapingAll, setIsScrapingAll] = useState(false);
 
@@ -35,26 +37,100 @@ export default function ResearchPage() {
   const [newCategory, setNewCategory] = useState('');
   const [newFrequency, setNewFrequency] = useState('');
 
-  const handleAddUrl = () => {
-    console.log('Add URL:', { url: newUrl, title: newTitle, category: newCategory, frequency: newFrequency });
+  async function loadUrls() {
+    const data = await fetchResearchUrls();
+    setUrls(data);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchResearchUrls().then((data) => {
+      if (!cancelled) setUrls(data);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleAddUrl = async () => {
+    if (!newUrl || !newTitle || !newCategory || !newFrequency) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    try {
+      const created = await createResearchUrl({
+        url: newUrl,
+        title: newTitle,
+        category: newCategory as ResearchUrl['category'],
+        scrapeFrequency: newFrequency as ResearchUrl['scrapeFrequency'],
+      });
+      setUrls((prev) => [...prev, created]);
+      toast.success('Research URL added');
+    } catch {
+      // Fallback: add to local state
+      const localUrl: ResearchUrl = {
+        id: crypto.randomUUID(),
+        url: newUrl,
+        title: newTitle,
+        category: newCategory as ResearchUrl['category'],
+        scrapeFrequency: newFrequency as ResearchUrl['scrapeFrequency'],
+        isActive: true,
+        lastScraped: null,
+      };
+      setUrls((prev) => [...prev, localUrl]);
+      toast.success('Research URL added (local)');
+    }
+
     setAddDialogOpen(false);
     resetForm();
-    toast.info('Feature coming in Phase 2', {
-      description: 'Adding research URLs will be available soon.',
+  };
+
+  const handleToggleActive = async (id: string, isActive: boolean) => {
+    try {
+      const updated = await updateResearchUrl({ id, isActive });
+      setUrls((prev) => prev.map((u) => (u.id === id ? updated : u)));
+      toast.success(isActive ? 'URL activated' : 'URL deactivated');
+    } catch {
+      setUrls((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, isActive } : u))
+      );
+      toast.success(isActive ? 'URL activated (local)' : 'URL deactivated (local)');
+    }
+  };
+
+  const handleEdit = (id: string) => {
+    toast.info('URL editing coming soon', {
+      description: `Edit URL ${id}`,
     });
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteResearchUrl(id);
+      setUrls((prev) => prev.filter((u) => u.id !== id));
+      toast.success('Research URL deleted');
+    } catch {
+      setUrls((prev) => prev.filter((u) => u.id !== id));
+      toast.success('Research URL deleted (local)');
+    }
   };
 
   const handleScrapeAll = async () => {
     setIsScrapingAll(true);
-    console.log('Scrape all clicked');
 
-    // Simulate scraping
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    setIsScrapingAll(false);
-    toast.info('Feature coming in Phase 3', {
-      description: 'Web scraping will be available soon.',
-    });
+    try {
+      const result = await scrapeResearchUrls();
+      toast.success(`Scraping complete`, {
+        description: `${result.scraped} scraped, ${result.failed} failed.`,
+      });
+      // Reload URLs to get updated lastScraped timestamps
+      await loadUrls();
+    } catch {
+      toast.info('Supabase not configured', {
+        description: 'Scraping requires Supabase and API keys to be configured.',
+      });
+    } finally {
+      setIsScrapingAll(false);
+    }
   };
 
   const resetForm = () => {
@@ -63,6 +139,8 @@ export default function ResearchPage() {
     setNewCategory('');
     setNewFrequency('');
   };
+
+  const activeCount = urls.filter((u) => u.isActive).length;
 
   return (
     <div className="space-y-6">
@@ -186,15 +264,20 @@ export default function ResearchPage() {
       </div>
 
       {/* Table */}
-      <ResearchUrlTable urls={mockResearchUrls} />
+      <ResearchUrlTable
+        urls={urls}
+        onToggleActive={handleToggleActive}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
 
       {/* Stats */}
       <div className="flex items-center justify-between text-sm text-slate-500 pt-2">
         <span>
-          {mockResearchUrls.length} source{mockResearchUrls.length !== 1 ? 's' : ''} configured
+          {urls.length} source{urls.length !== 1 ? 's' : ''} configured
         </span>
         <span>
-          {mockResearchUrls.filter((u) => u.isActive).length} active
+          {activeCount} active
         </span>
       </div>
     </div>

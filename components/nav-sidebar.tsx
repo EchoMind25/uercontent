@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -11,7 +11,6 @@ import {
   LogOut,
   Home,
   Menu,
-  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -25,6 +24,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import { useState } from 'react';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 const navItems = [
   {
@@ -78,11 +78,19 @@ function NavContent({ onLinkClick }: { onLinkClick?: () => void }) {
 }
 
 function UserMenu() {
-  const handleLogout = () => {
-    console.log('Logout clicked');
-    toast.info('Feature coming in Phase 2', {
-      description: 'Logout will be available after authentication is implemented.',
-    });
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      await supabase.auth.signOut();
+      router.push('/login');
+      router.refresh();
+    } catch {
+      toast.info('Supabase not configured', {
+        description: 'Auth is not available without Supabase configuration.',
+      });
+    }
   };
 
   return (

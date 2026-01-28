@@ -13,6 +13,7 @@ export interface ContentItem {
   publishTime: string;
   status: ContentStatus;
   owner: string;
+  calendarEventId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -39,6 +40,7 @@ export interface UserSettings {
   autoApproveEnabled: boolean;
   notificationEmail: string;
   forbiddenPhrases: string[];
+  googleCalendarConnected?: boolean;
 }
 
 // Calendar types
