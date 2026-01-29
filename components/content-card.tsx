@@ -10,25 +10,44 @@ import { cn } from '@/lib/utils';
 
 interface ContentCardProps {
   item: ContentItem;
+  selected?: boolean;
   onApprove?: (id: string) => void;
   onEdit?: (id: string) => void;
+  onView?: (item: ContentItem) => void;
+  onSelect?: (id: string, selected: boolean) => void;
+  selectable?: boolean;
 }
 
-export function ContentCard({ item, onApprove, onEdit }: ContentCardProps) {
-  const platformColor = platformColors[item.platform];
-  const statusColor = statusColors[item.status];
-  const emoji = platformEmojis[item.platform];
+export function ContentCard({
+  item,
+  selected,
+  onApprove,
+  onEdit,
+  onView,
+  onSelect,
+  selectable,
+}: ContentCardProps) {
+  const platformColor = platformColors[item.platform] || platformColors['IGFB'];
+  const statusColor = statusColors[item.status] || statusColors['draft'];
+  const emoji = platformEmojis[item.platform] || '';
 
-  const handleApprove = () => {
-    if (onApprove) {
-      onApprove(item.id);
-    }
+  const handleApprove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onApprove) onApprove(item.id);
   };
 
-  const handleEdit = () => {
-    if (onEdit) {
-      onEdit(item.id);
-    }
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onEdit) onEdit(item.id);
+  };
+
+  const handleCardClick = () => {
+    if (onView) onView(item);
+  };
+
+  const handleSelect = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onSelect) onSelect(item.id, !selected);
   };
 
   // Truncate text to ~150 characters
@@ -37,10 +56,29 @@ export function ContentCard({ item, onApprove, onEdit }: ContentCardProps) {
     : item.generatedText;
 
   return (
-    <Card className="group hover:shadow-md transition-shadow duration-200">
+    <Card
+      className={cn(
+        'group hover:shadow-md transition-all duration-200 cursor-pointer',
+        selected && 'ring-2 ring-blue-500 shadow-md'
+      )}
+      onClick={handleCardClick}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
+            {selectable && (
+              <button
+                onClick={handleSelect}
+                className={cn(
+                  'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0',
+                  selected
+                    ? 'bg-blue-500 border-blue-500 text-white'
+                    : 'border-slate-300 hover:border-blue-400'
+                )}
+              >
+                {selected && <Check className="h-3 w-3" />}
+              </button>
+            )}
             <span className="text-xl" role="img" aria-label={item.platform}>
               {emoji}
             </span>
@@ -106,6 +144,9 @@ export function ContentCard({ item, onApprove, onEdit }: ContentCardProps) {
             Edit
           </Button>
         </div>
+        <p className="text-xs text-slate-400 text-center mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          Click to view full content
+        </p>
       </CardContent>
     </Card>
   );

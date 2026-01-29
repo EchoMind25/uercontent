@@ -50,10 +50,16 @@ Format as JSON:
     };
   }
 
-  const parsed = JSON.parse(jsonMatch[0]);
-
-  return {
-    text: parsed.summary || responseText.substring(0, 500),
-    keyPoints: parsed.keyPoints || [],
-  };
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      text: parsed.summary || responseText.substring(0, 500),
+      keyPoints: parsed.keyPoints || [],
+    };
+  } catch {
+    return {
+      text: responseText.substring(0, 500),
+      keyPoints: [],
+    };
+  }
 }

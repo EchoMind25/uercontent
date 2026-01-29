@@ -23,7 +23,10 @@ export async function scrapeUrl(url: string): Promise<{
     throw new Error(`Failed to scrape ${url}: ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = await response.json().catch(() => null);
+  if (!data) {
+    throw new Error(`Invalid JSON response from ${url}`);
+  }
 
   return {
     content: data.data?.content || '',

@@ -12,12 +12,17 @@ export async function POST(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = approveSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
@@ -27,13 +32,13 @@ export async function POST(request: Request) {
     .from('content')
     .update({ status: 'approved' })
     .eq('id', parsed.data.contentId)
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('status', 'draft')
     .select()
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   if (!data) {

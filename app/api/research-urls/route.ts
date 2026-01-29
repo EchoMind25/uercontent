@@ -46,19 +46,19 @@ export async function GET() {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { data, error } = await supabase
     .from('research_urls')
     .select('*')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .order('created_at', { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   return NextResponse.json((data || []).map(mapRow));
@@ -70,19 +70,24 @@ export async function POST(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = researchUrlCreateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
   }
 
   const { data, error } = await supabase.from('research_urls').insert({
-    user_id: session.user.id,
+    user_id: user.id,
     url: parsed.data.url,
     title: parsed.data.title,
     category: parsed.data.category,
@@ -90,7 +95,7 @@ export async function POST(request: Request) {
   }).select().single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   return NextResponse.json(mapRow(data), { status: 201 });
@@ -102,12 +107,17 @@ export async function PATCH(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = researchUrlUpdateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
@@ -126,12 +136,12 @@ export async function PATCH(request: Request) {
     .from('research_urls')
     .update(dbUpdates)
     .eq('id', id)
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .select()
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   return NextResponse.json(mapRow(data));
@@ -143,25 +153,25 @@ export async function DELETE(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
-  if (!id) {
-    return NextResponse.json({ error: 'Missing id parameter' }, { status: 400 });
+  if (!id || !z.string().uuid().safeParse(id).success) {
+    return NextResponse.json({ error: 'Missing or invalid id parameter' }, { status: 400 });
   }
 
   const { error } = await supabase
     .from('research_urls')
     .delete()
     .eq('id', id)
-    .eq('user_id', session.user.id);
+    .eq('user_id', user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

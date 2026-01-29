@@ -45,6 +45,9 @@ Write an X post.`;
     throw new Error(`Grok API error: ${response.statusText}`);
   }
 
-  const data = await response.json();
-  return data.choices[0].message.content || '';
+  const data = await response.json().catch(() => null);
+  if (!data?.choices?.[0]?.message?.content) {
+    throw new Error('Invalid response from Grok API');
+  }
+  return data.choices[0].message.content;
 }

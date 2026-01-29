@@ -25,29 +25,46 @@ const contentUpdateSchema = z.object({
   owner: z.string().optional(),
 });
 
+const contentQuerySchema = z.object({
+  status: z.enum(['draft', 'approved', 'published', 'scheduled']).optional(),
+  platform: z.enum(['IGFB', 'LinkedIn', 'Blog', 'YouTube', 'X']).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 export async function GET(request: Request) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: 'Supabase not configured' }, { status: 503 });
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
-  const status = searchParams.get('status');
-  const platform = searchParams.get('platform');
-  const startDate = searchParams.get('startDate');
-  const endDate = searchParams.get('endDate');
-  const limit = parseInt(searchParams.get('limit') || '50', 10);
-  const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const queryParams = contentQuerySchema.safeParse({
+    status: searchParams.get('status') || undefined,
+    platform: searchParams.get('platform') || undefined,
+    startDate: searchParams.get('startDate') || undefined,
+    endDate: searchParams.get('endDate') || undefined,
+    limit: searchParams.get('limit') || undefined,
+    offset: searchParams.get('offset') || undefined,
+  });
+
+  if (!queryParams.success) {
+    return NextResponse.json({ error: 'Invalid query parameters' }, { status: 400 });
+  }
+
+  const { status, platform, startDate, endDate, limit, offset } = queryParams.data;
 
   let query = supabase
     .from('content')
     .select('*')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .order('publish_date', { ascending: true })
     .range(offset, offset + limit - 1);
 
@@ -59,7 +76,7 @@ export async function GET(request: Request) {
   const { data, error } = await query;
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   // Map snake_case DB columns to camelCase frontend types
@@ -87,19 +104,24 @@ export async function POST(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = contentCreateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
   }
 
   const { data, error } = await supabase.from('content').insert({
-    user_id: session.user.id,
+    user_id: user.id,
     platform: parsed.data.platform,
     content_type: parsed.data.contentType,
     topic: parsed.data.topic,
@@ -111,7 +133,7 @@ export async function POST(request: Request) {
   }).select().single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -136,12 +158,17 @@ export async function PATCH(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = contentUpdateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
@@ -163,12 +190,12 @@ export async function PATCH(request: Request) {
     .from('content')
     .update(dbUpdates)
     .eq('id', id)
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .select()
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -193,25 +220,25 @@ export async function DELETE(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
-  if (!id) {
-    return NextResponse.json({ error: 'Missing id parameter' }, { status: 400 });
+  if (!id || !z.string().uuid().safeParse(id).success) {
+    return NextResponse.json({ error: 'Missing or invalid id parameter' }, { status: 400 });
   }
 
   const { error } = await supabase
     .from('content')
     .delete()
     .eq('id', id)
-    .eq('user_id', session.user.id);
+    .eq('user_id', user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

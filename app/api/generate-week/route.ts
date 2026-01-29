@@ -140,12 +140,17 @@ export async function POST(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = generateWeekSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
@@ -158,7 +163,7 @@ export async function POST(request: Request) {
   const { data: job, error: jobError } = await serviceSupabase
     .from('generation_jobs')
     .insert({
-      user_id: session.user.id,
+      user_id: user.id,
       status: 'running',
       week_start_date: startDate,
       started_at: new Date().toISOString(),
@@ -167,14 +172,14 @@ export async function POST(request: Request) {
     .single();
 
   if (jobError) {
-    return NextResponse.json({ error: jobError.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create generation job' }, { status: 500 });
   }
 
   // Get user's forbidden phrases
   const { data: phrases } = await serviceSupabase
     .from('phrase_patterns')
     .select('phrase')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('is_forbidden', true);
 
   const forbiddenPhrases = (phrases || []).map((p) => p.phrase);
@@ -210,7 +215,7 @@ export async function POST(request: Request) {
 
     try {
       // Check similarity against existing content
-      const { isSimilar } = await checkSimilarity(topic, '');
+      const { isSimilar } = await checkSimilarity(topic, '', user.id);
       const finalTopic = isSimilar ? `${topic} (fresh perspective)` : topic;
 
       // Generate content
@@ -226,7 +231,7 @@ export async function POST(request: Request) {
       const { data: contentItem, error: contentError } = await serviceSupabase
         .from('content')
         .insert({
-          user_id: session.user.id,
+          user_id: user.id,
           platform: slot.platform,
           content_type: slot.contentType,
           topic: finalTopic,

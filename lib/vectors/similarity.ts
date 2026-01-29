@@ -17,7 +17,8 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
 export async function checkSimilarity(
   topic: string,
-  content: string
+  content: string,
+  userId?: string
 ): Promise<{
   isSimilar: boolean;
   similarItems: Array<{ id: string; topic: string; similarity: number }>;
@@ -28,8 +29,9 @@ export async function checkSimilarity(
 
     const { data: similar } = await supabase.rpc('match_content', {
       query_embedding: embedding,
-      match_threshold: 0.70,
+      match_threshold: 0.75,
       match_count: 3,
+      ...(userId && { filter_user_id: userId }),
     });
 
     const isSimilar = !!(similar && similar.length > 0 && similar[0].similarity > 0.75);

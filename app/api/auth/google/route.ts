@@ -13,8 +13,8 @@ export async function GET() {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.redirect(new URL('/login', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
   }
 
@@ -30,7 +30,7 @@ export async function GET() {
     access_type: 'offline',
     prompt: 'consent',
     scope: ['https://www.googleapis.com/auth/calendar.events'],
-    state: session.user.id,
+    state: user.id,
   });
 
   return NextResponse.redirect(authUrl);

@@ -16,8 +16,8 @@ export async function GET() {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -25,30 +25,30 @@ export async function GET() {
   const { data: settings, error: settingsError } = await supabase
     .from('user_settings')
     .select('*')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .single();
 
   if (settingsError && settingsError.code !== 'PGRST116') {
     // PGRST116 = no rows found, which is fine for new users
-    return NextResponse.json({ error: settingsError.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   // Get forbidden phrases
   const { data: phrases, error: phrasesError } = await supabase
     .from('phrase_patterns')
     .select('phrase')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('is_forbidden', true);
 
   if (phrasesError) {
-    return NextResponse.json({ error: phrasesError.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   return NextResponse.json({
     weeklyGenerationDay: settings?.weekly_generation_day ?? 0,
     weeklyGenerationTime: settings?.weekly_generation_time ?? '18:00',
     autoApproveEnabled: settings?.auto_approve_enabled ?? false,
-    notificationEmail: settings?.notification_email ?? session.user.email ?? '',
+    notificationEmail: settings?.notification_email ?? user.email ?? '',
     forbiddenPhrases: (phrases || []).map((p) => p.phrase),
     googleCalendarConnected: !!settings?.google_refresh_token,
   });
@@ -60,12 +60,17 @@ export async function PUT(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = settingsUpdateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
@@ -73,7 +78,7 @@ export async function PUT(request: Request) {
 
   // Upsert user settings
   const settingsData = {
-    user_id: session.user.id,
+    user_id: user.id,
     ...(parsed.data.weeklyGenerationDay !== undefined && { weekly_generation_day: parsed.data.weeklyGenerationDay }),
     ...(parsed.data.weeklyGenerationTime !== undefined && { weekly_generation_time: parsed.data.weeklyGenerationTime }),
     ...(parsed.data.autoApproveEnabled !== undefined && { auto_approve_enabled: parsed.data.autoApproveEnabled }),
@@ -85,7 +90,7 @@ export async function PUT(request: Request) {
     .upsert(settingsData, { onConflict: 'user_id' });
 
   if (settingsError) {
-    return NextResponse.json({ error: settingsError.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 
   // Update forbidden phrases if provided
@@ -94,7 +99,7 @@ export async function PUT(request: Request) {
     await supabase
       .from('phrase_patterns')
       .delete()
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .eq('is_forbidden', true);
 
     // Insert new phrases
@@ -103,14 +108,14 @@ export async function PUT(request: Request) {
         .from('phrase_patterns')
         .insert(
           parsed.data.forbiddenPhrases.map((phrase) => ({
-            user_id: session.user.id,
+            user_id: user.id,
             phrase,
             is_forbidden: true,
           }))
         );
 
       if (phrasesError) {
-        return NextResponse.json({ error: phrasesError.message }, { status: 500 });
+        return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
       }
     }
   }
@@ -119,13 +124,13 @@ export async function PUT(request: Request) {
   const { data: updatedSettings } = await supabase
     .from('user_settings')
     .select('*')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .single();
 
   const { data: updatedPhrases } = await supabase
     .from('phrase_patterns')
     .select('phrase')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('is_forbidden', true);
 
   return NextResponse.json({

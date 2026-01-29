@@ -19,12 +19,17 @@ export async function POST(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = syncSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
@@ -37,7 +42,7 @@ export async function POST(request: Request) {
     .from('content')
     .select('*')
     .eq('id', parsed.data.contentId)
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .single();
 
   if (contentError || !content) {
@@ -52,7 +57,7 @@ export async function POST(request: Request) {
     const { data: settings } = await serviceSupabase
       .from('user_settings')
       .select('google_refresh_token')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .single();
 
     refreshToken = settings?.google_refresh_token ?? null;
@@ -104,7 +109,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Calendar sync failed' },
+      { error: 'Calendar sync failed' },
       { status: 500 }
     );
   }

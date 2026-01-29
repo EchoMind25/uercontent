@@ -1,5 +1,4 @@
 import { ContentItem, ResearchUrl, UserSettings } from './types';
-import { mockContent, mockResearchUrls, mockUserSettings } from './mock-data';
 
 // --- Content ---
 
@@ -11,21 +10,17 @@ export async function fetchContent(params?: {
   limit?: number;
   offset?: number;
 }): Promise<ContentItem[]> {
-  try {
-    const query = new URLSearchParams();
-    if (params?.status) query.set('status', params.status);
-    if (params?.platform) query.set('platform', params.platform);
-    if (params?.startDate) query.set('startDate', params.startDate);
-    if (params?.endDate) query.set('endDate', params.endDate);
-    if (params?.limit) query.set('limit', params.limit.toString());
-    if (params?.offset) query.set('offset', params.offset.toString());
+  const query = new URLSearchParams();
+  if (params?.status) query.set('status', params.status);
+  if (params?.platform) query.set('platform', params.platform);
+  if (params?.startDate) query.set('startDate', params.startDate);
+  if (params?.endDate) query.set('endDate', params.endDate);
+  if (params?.limit) query.set('limit', params.limit.toString());
+  if (params?.offset) query.set('offset', params.offset.toString());
 
-    const res = await fetch(`/api/content?${query.toString()}`);
-    if (!res.ok) throw new Error('API error');
-    return await res.json();
-  } catch {
-    return mockContent;
-  }
+  const res = await fetch(`/api/content?${query.toString()}`);
+  if (!res.ok) return [];
+  return await res.json();
 }
 
 export async function createContent(item: Omit<ContentItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<ContentItem> {
@@ -89,13 +84,9 @@ export async function generateWeek(params: {
 // --- Research URLs ---
 
 export async function fetchResearchUrls(): Promise<ResearchUrl[]> {
-  try {
-    const res = await fetch('/api/research-urls');
-    if (!res.ok) throw new Error('API error');
-    return await res.json();
-  } catch {
-    return mockResearchUrls;
-  }
+  const res = await fetch('/api/research-urls');
+  if (!res.ok) return [];
+  return await res.json();
 }
 
 export async function createResearchUrl(url: Omit<ResearchUrl, 'id' | 'createdAt' | 'lastScraped' | 'isActive'>): Promise<ResearchUrl> {
@@ -161,13 +152,17 @@ export async function scrapeResearchUrls(urlIds?: string[]): Promise<{
 // --- Settings ---
 
 export async function fetchSettings(): Promise<UserSettings> {
-  try {
-    const res = await fetch('/api/settings');
-    if (!res.ok) throw new Error('API error');
-    return await res.json();
-  } catch {
-    return mockUserSettings;
+  const res = await fetch('/api/settings');
+  if (!res.ok) {
+    return {
+      weeklyGenerationDay: 0,
+      weeklyGenerationTime: '18:00',
+      autoApproveEnabled: false,
+      notificationEmail: '',
+      forbiddenPhrases: [],
+    };
   }
+  return await res.json();
 }
 
 export async function saveSettings(settings: Partial<UserSettings>): Promise<UserSettings> {

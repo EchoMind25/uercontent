@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ContentCard } from '@/components/content-card';
+import { ContentViewEditDialog } from '@/components/content-view-edit-dialog';
 import { GenerationWizard } from '@/components/generation-wizard';
 import { fetchContent, approveContent } from '@/lib/api';
 import { ContentItem, ContentStatus, Platform } from '@/lib/types';
@@ -14,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Filter } from 'lucide-react';
+import { Filter, CheckCheck, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type StatusFilter = ContentStatus | 'all';
@@ -25,10 +26,19 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
 
-  async function loadContent() {
+  // View/Edit dialog state
+  const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Batch selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchApproving, setBatchApproving] = useState(false);
+
+  const loadContent = useCallback(async () => {
     const items = await fetchContent();
     setContent(items);
-  }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +66,14 @@ export default function DashboardPage() {
     };
   }, [content]);
 
+  const draftIds = useMemo(() => {
+    return new Set(filteredContent.filter((i) => i.status === 'draft').map((i) => i.id));
+  }, [filteredContent]);
+
+  const selectedDraftCount = useMemo(() => {
+    return [...selectedIds].filter((id) => draftIds.has(id)).length;
+  }, [selectedIds, draftIds]);
+
   const clearFilters = () => {
     setStatusFilter('all');
     setPlatformFilter('all');
@@ -63,15 +81,47 @@ export default function DashboardPage() {
 
   const hasActiveFilters = statusFilter !== 'all' || platformFilter !== 'all';
 
-  const handleApprove = async (id: string) => {
+  // --- View/Edit Handlers ---
+  const handleView = useCallback((item: ContentItem) => {
+    if (batchMode) return;
+    setSelectedItem(item);
+    setDialogOpen(true);
+  }, [batchMode]);
+
+  const handleEdit = useCallback((id: string) => {
+    const item = content.find((c) => c.id === id);
+    if (item) {
+      setSelectedItem(item);
+      setDialogOpen(true);
+    }
+  }, [content]);
+
+  const handleDialogUpdated = useCallback((updated: ContentItem) => {
+    setContent((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    setSelectedItem(updated);
+  }, []);
+
+  const handleDialogDeleted = useCallback((id: string) => {
+    setContent((prev) => prev.filter((item) => item.id !== id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const handleDialogApproved = useCallback((updated: ContentItem) => {
+    setContent((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    setSelectedItem(updated);
+  }, []);
+
+  // --- Single Approve ---
+  const handleApprove = useCallback(async (id: string) => {
     try {
       const updated = await approveContent(id);
-      setContent((prev) =>
-        prev.map((item) => (item.id === id ? updated : item))
-      );
+      setContent((prev) => prev.map((item) => (item.id === id ? updated : item)));
       toast.success('Content approved');
     } catch {
-      // Fallback: optimistically update in local state
       setContent((prev) =>
         prev.map((item) =>
           item.id === id ? { ...item, status: 'approved' as ContentStatus } : item
@@ -79,13 +129,80 @@ export default function DashboardPage() {
       );
       toast.success('Content approved (local)');
     }
-  };
+  }, []);
 
-  const handleEdit = (id: string) => {
-    toast.info('Content editing coming in Phase 3', {
-      description: `Edit content ${id}`,
+  // --- Batch Selection ---
+  const handleSelect = useCallback((id: string, isSelected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (isSelected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
     });
-  };
+  }, []);
+
+  const handleSelectAllDrafts = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = [...draftIds].every((id) => next.has(id));
+      if (allSelected) {
+        draftIds.forEach((id) => next.delete(id));
+      } else {
+        draftIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }, [draftIds]);
+
+  const handleBatchApprove = useCallback(async () => {
+    const idsToApprove = [...selectedIds].filter((id) => draftIds.has(id));
+    if (idsToApprove.length === 0) {
+      toast.info('No draft items selected');
+      return;
+    }
+
+    setBatchApproving(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of idsToApprove) {
+      try {
+        const updated = await approveContent(id);
+        setContent((prev) => prev.map((item) => (item.id === id ? updated : item)));
+        successCount++;
+      } catch {
+        setContent((prev) =>
+          prev.map((item) =>
+            item.id === id ? { ...item, status: 'approved' as ContentStatus } : item
+          )
+        );
+        successCount++;
+        failCount++;
+      }
+    }
+
+    setBatchApproving(false);
+    setSelectedIds(new Set());
+    setBatchMode(false);
+
+    if (failCount > 0) {
+      toast.success(`Approved ${successCount} items (${failCount} local-only)`);
+    } else {
+      toast.success(`Approved ${successCount} items`);
+    }
+  }, [selectedIds, draftIds]);
+
+  const toggleBatchMode = useCallback(() => {
+    setBatchMode((prev) => {
+      if (prev) {
+        setSelectedIds(new Set());
+      }
+      return !prev;
+    });
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -97,8 +214,55 @@ export default function DashboardPage() {
             Manage and review your scheduled content
           </p>
         </div>
-        <GenerationWizard onGenerated={loadContent} />
+        <div className="flex items-center gap-2">
+          {statusCounts.draft > 0 && (
+            <Button
+              variant={batchMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={toggleBatchMode}
+            >
+              <CheckCheck className="h-4 w-4 mr-1.5" />
+              {batchMode ? 'Exit Batch' : 'Batch Approve'}
+            </Button>
+          )}
+          <GenerationWizard onGenerated={loadContent} />
+        </div>
       </div>
+
+      {/* Batch Actions Bar */}
+      {batchMode && (
+        <div className="flex items-center gap-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <span className="text-sm text-blue-800 font-medium">
+            {selectedDraftCount} draft{selectedDraftCount !== 1 ? 's' : ''} selected
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSelectAllDrafts}
+            className="text-blue-700"
+          >
+            {[...draftIds].every((id) => selectedIds.has(id)) ? 'Deselect All' : 'Select All Drafts'}
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleBatchApprove}
+            disabled={selectedDraftCount === 0 || batchApproving}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"
+          >
+            {batchApproving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                Approving...
+              </>
+            ) : (
+              <>
+                <CheckCheck className="h-4 w-4 mr-1.5" />
+                Approve Selected ({selectedDraftCount})
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -136,6 +300,7 @@ export default function DashboardPage() {
               <SelectItem value="LinkedIn">LinkedIn</SelectItem>
               <SelectItem value="Blog">Blog</SelectItem>
               <SelectItem value="YouTube">YouTube</SelectItem>
+              <SelectItem value="X">X (Twitter)</SelectItem>
             </SelectContent>
           </Select>
 
@@ -165,8 +330,12 @@ export default function DashboardPage() {
             <ContentCard
               key={item.id}
               item={item}
+              selected={selectedIds.has(item.id)}
+              selectable={batchMode}
               onApprove={handleApprove}
               onEdit={handleEdit}
+              onView={handleView}
+              onSelect={handleSelect}
             />
           ))}
         </div>
@@ -178,6 +347,16 @@ export default function DashboardPage() {
           </Button>
         </div>
       )}
+
+      {/* View/Edit Dialog */}
+      <ContentViewEditDialog
+        item={selectedItem}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onUpdated={handleDialogUpdated}
+        onDeleted={handleDialogDeleted}
+        onApproved={handleDialogApproved}
+      />
     </div>
   );
 }

@@ -332,6 +332,7 @@ export interface Database {
           query_embedding: number[];
           match_threshold: number;
           match_count: number;
+          filter_user_id?: string;
         };
         Returns: {
           id: string;

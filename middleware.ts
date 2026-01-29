@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -26,20 +26,20 @@ export async function middleware(req: NextRequest) {
     },
   });
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const pathname = req.nextUrl.pathname;
 
-  // Allow public routes without session
+  // Allow public routes without user
   if (pathname === '/login' || pathname.startsWith('/callback')) {
-    if (session) {
+    if (user) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
     return res;
   }
 
-  // Protected routes: redirect to login if no session
-  if (!session) {
+  // Protected routes: redirect to login if no user
+  if (!user) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 

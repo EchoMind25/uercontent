@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ResearchUrlTable } from '@/components/research-url-table';
 import { fetchResearchUrls, createResearchUrl, updateResearchUrl, deleteResearchUrl, scrapeResearchUrls } from '@/lib/api';
-import { ResearchUrl } from '@/lib/types';
+import { ResearchUrl, UrlCategory, ScrapeFrequency } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,9 +26,20 @@ import {
 import { Plus, RefreshCw, Loader2, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
+const categories: UrlCategory[] = [
+  'Market Research',
+  'Local News',
+  'Industry Trends',
+  'Competitor Analysis',
+  'General',
+];
+
+const frequencies: ScrapeFrequency[] = ['daily', 'weekly', 'monthly'];
+
 export default function ResearchPage() {
   const [urls, setUrls] = useState<ResearchUrl[]>([]);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isScrapingAll, setIsScrapingAll] = useState(false);
 
   // Form state for add dialog
@@ -36,6 +47,14 @@ export default function ResearchPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newFrequency, setNewFrequency] = useState('');
+
+  // Form state for edit dialog
+  const [editingUrl, setEditingUrl] = useState<ResearchUrl | null>(null);
+  const [editUrl, setEditUrl] = useState('');
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editFrequency, setEditFrequency] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   async function loadUrls() {
     const data = await fetchResearchUrls();
@@ -60,19 +79,18 @@ export default function ResearchPage() {
       const created = await createResearchUrl({
         url: newUrl,
         title: newTitle,
-        category: newCategory as ResearchUrl['category'],
-        scrapeFrequency: newFrequency as ResearchUrl['scrapeFrequency'],
+        category: newCategory as UrlCategory,
+        scrapeFrequency: newFrequency as ScrapeFrequency,
       });
       setUrls((prev) => [...prev, created]);
       toast.success('Research URL added');
     } catch {
-      // Fallback: add to local state
       const localUrl: ResearchUrl = {
         id: crypto.randomUUID(),
         url: newUrl,
         title: newTitle,
-        category: newCategory as ResearchUrl['category'],
-        scrapeFrequency: newFrequency as ResearchUrl['scrapeFrequency'],
+        category: newCategory as UrlCategory,
+        scrapeFrequency: newFrequency as ScrapeFrequency,
         isActive: true,
         lastScraped: null,
       };
@@ -81,7 +99,7 @@ export default function ResearchPage() {
     }
 
     setAddDialogOpen(false);
-    resetForm();
+    resetAddForm();
   };
 
   const handleToggleActive = async (id: string, isActive: boolean) => {
@@ -97,10 +115,50 @@ export default function ResearchPage() {
     }
   };
 
-  const handleEdit = (id: string) => {
-    toast.info('URL editing coming soon', {
-      description: `Edit URL ${id}`,
-    });
+  const handleEdit = useCallback((id: string) => {
+    const url = urls.find((u) => u.id === id);
+    if (!url) return;
+    setEditingUrl(url);
+    setEditUrl(url.url);
+    setEditTitle(url.title);
+    setEditCategory(url.category);
+    setEditFrequency(url.scrapeFrequency);
+    setEditDialogOpen(true);
+  }, [urls]);
+
+  const handleSaveEdit = async () => {
+    if (!editingUrl) return;
+    if (!editUrl || !editTitle || !editCategory || !editFrequency) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      const updated = await updateResearchUrl({
+        id: editingUrl.id,
+        url: editUrl,
+        title: editTitle,
+        category: editCategory as UrlCategory,
+        scrapeFrequency: editFrequency as ScrapeFrequency,
+      });
+      setUrls((prev) => prev.map((u) => (u.id === editingUrl.id ? updated : u)));
+      toast.success('Research URL updated');
+    } catch {
+      const localUpdated: ResearchUrl = {
+        ...editingUrl,
+        url: editUrl,
+        title: editTitle,
+        category: editCategory as UrlCategory,
+        scrapeFrequency: editFrequency as ScrapeFrequency,
+      };
+      setUrls((prev) => prev.map((u) => (u.id === editingUrl.id ? localUpdated : u)));
+      toast.success('Research URL updated (local)');
+    } finally {
+      setIsSavingEdit(false);
+      setEditDialogOpen(false);
+      setEditingUrl(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -122,7 +180,6 @@ export default function ResearchPage() {
       toast.success(`Scraping complete`, {
         description: `${result.scraped} scraped, ${result.failed} failed.`,
       });
-      // Reload URLs to get updated lastScraped timestamps
       await loadUrls();
     } catch {
       toast.info('Supabase not configured', {
@@ -133,7 +190,7 @@ export default function ResearchPage() {
     }
   };
 
-  const resetForm = () => {
+  const resetAddForm = () => {
     setNewUrl('');
     setNewTitle('');
     setNewCategory('');
@@ -215,11 +272,9 @@ export default function ResearchPage() {
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Market Research">Market Research</SelectItem>
-                        <SelectItem value="Local News">Local News</SelectItem>
-                        <SelectItem value="Industry Trends">Industry Trends</SelectItem>
-                        <SelectItem value="Competitor Analysis">Competitor Analysis</SelectItem>
-                        <SelectItem value="General">General</SelectItem>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -230,9 +285,9 @@ export default function ResearchPage() {
                         <SelectValue placeholder="Select frequency" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
+                        {frequencies.map((freq) => (
+                          <SelectItem key={freq} value={freq}>{freq.charAt(0).toUpperCase() + freq.slice(1)}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -280,6 +335,85 @@ export default function ResearchPage() {
           {activeCount} active
         </span>
       </div>
+
+      {/* Edit URL Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Research URL</DialogTitle>
+            <DialogDescription>
+              Update this research source&apos;s details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-url">URL</Label>
+              <div className="relative">
+                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  id="edit-url"
+                  placeholder="https://example.com/real-estate-news"
+                  value={editUrl}
+                  onChange={(e) => setEditUrl(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Title</Label>
+              <Input
+                id="edit-title"
+                placeholder="Descriptive name for this source"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-category">Category</Label>
+                <Select value={editCategory} onValueChange={setEditCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-frequency">Scrape Frequency</Label>
+                <Select value={editFrequency} onValueChange={setEditFrequency}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select frequency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {frequencies.map((freq) => (
+                      <SelectItem key={freq} value={freq}>{freq.charAt(0).toUpperCase() + freq.slice(1)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={isSavingEdit}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
+              {isSavingEdit ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

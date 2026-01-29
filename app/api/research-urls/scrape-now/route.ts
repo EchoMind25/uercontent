@@ -13,12 +13,17 @@ export async function POST(request: Request) {
   }
 
   const supabase = await getSupabaseRouteHandler();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const parsed = scrapeSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 });
@@ -35,7 +40,7 @@ export async function POST(request: Request) {
           const result = await scrapeAndStore(urlId);
           results.push(result);
         } catch (err) {
-          errors.push(`${urlId}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          errors.push(`${urlId}: scrape failed`);
         }
       }
 
@@ -52,7 +57,7 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Scraping failed' },
+      { error: 'Scraping failed' },
       { status: 500 }
     );
   }
